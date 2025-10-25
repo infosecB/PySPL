@@ -40,6 +40,7 @@ def evaluate_condition(record: Dict[str, Any], condition: str) -> bool:
         - field>value, field>=value, field<value, field<=value (comparisons)
         - field="quoted value" (quoted strings)
         - field=* (field exists)
+        - field>other_field (field-to-field comparisons)
         - * (match all)
 
     Args:
@@ -83,8 +84,20 @@ def evaluate_condition(record: Dict[str, Any], condition: str) -> bool:
                     elif op_str == '!=':
                         return field_value is None
 
-                # Parse expected value (handle quotes)
-                expected_value = parse_value(value_str)
+                # Check if value_str is a field reference (not quoted)
+                # If it's not quoted and exists in record, treat as field reference
+                is_field_reference = False
+                expected_value = None
+
+                if not (value_str.startswith('"') or value_str.startswith("'")):
+                    # Check if this looks like a field name in the record
+                    if value_str in record:
+                        is_field_reference = True
+                        expected_value = record.get(value_str)
+
+                if not is_field_reference:
+                    # Parse as literal value (handle quotes)
+                    expected_value = parse_value(value_str)
 
                 if field_value is None:
                     return False
@@ -156,14 +169,32 @@ def parse_multiple_conditions(condition_str: str) -> List[str]:
     Parse multiple AND/OR conditions.
     Currently supports simple AND logic (space-separated conditions).
 
+    Handles comparison operators (=, !=, <, >, <=, >=) as single conditions.
+
     Args:
         condition_str: String with multiple conditions
 
     Returns:
         List of individual conditions
     """
-    # For now, simple implementation - split by space
-    # In future, could support AND, OR, NOT operators
+    # Check if this looks like a single comparison (has comparison operator)
+    # If so, return as-is without splitting
+    comparison_operators = ['!=', '>=', '<=', '>', '<', '=']
+
+    # Count actual occurrences of operators (checking longer operators first to avoid double-counting)
+    operator_count = 0
+    temp_str = condition_str
+    for op in comparison_operators:  # Already sorted by length (longest first)
+        count = temp_str.count(op)
+        operator_count += count
+        # Remove these occurrences to avoid counting '=' in '>='
+        temp_str = temp_str.replace(op, ' ' * len(op))
+
+    # If there's only one comparison operator, treat as single condition
+    if operator_count == 1:
+        return [condition_str.strip()]
+
+    # Otherwise, parse multiple conditions (space-separated with AND logic)
     conditions = []
     current = []
     in_quotes = False
@@ -183,8 +214,21 @@ def parse_multiple_conditions(condition_str: str) -> List[str]:
 
         if char == ' ' and not in_quotes:
             if current:
-                conditions.append(''.join(current))
-                current = []
+                # Check if current token contains a comparison operator
+                token = ''.join(current)
+                has_operator = any(op in token for op in comparison_operators)
+
+                if has_operator:
+                    # This is a complete condition
+                    conditions.append(token)
+                    current = []
+                elif conditions and not any(op in conditions[-1] for op in comparison_operators):
+                    # Append to previous token (multi-word condition)
+                    conditions[-1] += ' ' + token
+                    current = []
+                else:
+                    conditions.append(token)
+                    current = []
             i += 1
             continue
 
@@ -192,6 +236,13 @@ def parse_multiple_conditions(condition_str: str) -> List[str]:
         i += 1
 
     if current:
-        conditions.append(''.join(current))
+        token = ''.join(current)
+        has_operator = any(op in token for op in comparison_operators)
+
+        if has_operator or not conditions:
+            conditions.append(token)
+        else:
+            # Append to last condition
+            conditions[-1] += ' ' + token
 
     return [c for c in conditions if c.strip()]

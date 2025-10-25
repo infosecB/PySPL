@@ -3,6 +3,7 @@ Stats command implementation for aggregations
 """
 
 import re
+import math
 from typing import List, Dict, Any, Callable
 from collections import defaultdict
 
@@ -199,38 +200,144 @@ def parse_aggregations(agg_str: str) -> List[tuple]:
     """
     Parse aggregation function strings.
 
+    Supports both formats:
+    - Space-separated: "count sum(price) as total dc(category) as categories"
+    - Comma-separated (legacy): "count, sum(price), dc(category)"
+    - With aliases: "sum(price) as total"
+
     Returns:
         List of tuples: (result_name, function, field_name)
     """
     agg_funcs = []
 
-    # Split by comma (but not inside parentheses)
-    parts = split_by_comma(agg_str)
+    # First check if there are commas (legacy format)
+    if ',' in agg_str and ' as ' not in agg_str.lower():
+        # Use old comma-based parsing for backward compatibility
+        parts = split_by_comma(agg_str)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            result = _parse_single_aggregation(part)
+            if result:
+                agg_funcs.append(result)
+        return agg_funcs
 
-    for part in parts:
-        part = part.strip()
-        if not part:
+    # New space-separated format with optional "as" aliases
+    # Tokenize the string, respecting parentheses
+    tokens = _tokenize_aggregations(agg_str)
+
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+
+        # Skip empty tokens
+        if not token.strip():
+            i += 1
             continue
 
-        # Match function(field) or function
-        match = re.match(r'(\w+)\s*\(\s*([^)]*)\s*\)', part)
-        if match:
-            func_name = match.group(1).lower()
-            field_name = match.group(2).strip()
+        # Check if this looks like an aggregation function
+        if '(' in token or token.lower() in ['count']:
+            func_spec = token
+            alias = None
 
-            agg_func = get_aggregation_function(func_name)
-            if agg_func:
-                # Result name is func(field)
-                result_name = f"{func_name}({field_name})" if field_name else func_name
-                agg_funcs.append((result_name, agg_func, field_name))
+            # Check for "as alias" after this token
+            if i + 2 < len(tokens) and tokens[i + 1].lower() == 'as':
+                alias = tokens[i + 2]
+                i += 3  # Skip function, 'as', and alias
+            else:
+                i += 1
+
+            result = _parse_single_aggregation(func_spec, alias)
+            if result:
+                agg_funcs.append(result)
         else:
-            # Simple function without parentheses (e.g., 'count')
-            func_name = part.lower()
-            agg_func = get_aggregation_function(func_name)
-            if agg_func:
-                agg_funcs.append((func_name, agg_func, None))
+            i += 1
 
     return agg_funcs
+
+
+def _tokenize_aggregations(agg_str: str) -> List[str]:
+    """
+    Tokenize aggregation string into tokens, respecting parentheses.
+
+    Example: "count sum(price) as total" -> ["count", "sum(price)", "as", "total"]
+    """
+    tokens = []
+    current = []
+    in_parens = 0
+
+    for char in agg_str:
+        if char == '(':
+            in_parens += 1
+            current.append(char)
+        elif char == ')':
+            in_parens -= 1
+            current.append(char)
+        elif char == ' ' and in_parens == 0:
+            if current:
+                tokens.append(''.join(current))
+                current = []
+        elif char == ',' and in_parens == 0:
+            # Treat comma as space separator for mixed formats
+            if current:
+                tokens.append(''.join(current))
+                current = []
+        else:
+            current.append(char)
+
+    if current:
+        tokens.append(''.join(current))
+
+    return tokens
+
+
+def _parse_single_aggregation(spec: str, alias: str = None) -> tuple:
+    """
+    Parse a single aggregation specification.
+
+    Args:
+        spec: Aggregation spec like "count", "sum(price)", "dc(category)"
+        alias: Optional alias name
+
+    Returns:
+        Tuple of (result_name, function, field_name) or None
+    """
+    spec = spec.strip()
+    if not spec:
+        return None
+
+    # Check for "as" within the spec itself (legacy comma-separated format)
+    if ' as ' in spec.lower():
+        as_match = re.search(r'\s+as\s+', spec, re.IGNORECASE)
+        if as_match:
+            func_part = spec[:as_match.start()].strip()
+            alias = spec[as_match.end():].strip()
+            spec = func_part
+
+    # Match function(field) or function
+    match = re.match(r'(\w+)\s*\(\s*([^)]*)\s*\)', spec)
+    if match:
+        func_name = match.group(1).lower()
+        field_name = match.group(2).strip()
+
+        agg_func = get_aggregation_function(func_name)
+        if agg_func:
+            # Use alias if provided, otherwise use default name
+            if alias:
+                result_name = alias
+            else:
+                result_name = f"{func_name}({field_name})" if field_name else func_name
+            return (result_name, agg_func, field_name)
+    else:
+        # Simple function without parentheses (e.g., 'count')
+        func_name = spec.lower()
+        agg_func = get_aggregation_function(func_name)
+        if agg_func:
+            result_name = alias if alias else func_name
+            return (result_name, agg_func, None)
+
+    return None
 
 
 def split_by_comma(s: str) -> List[str]:
@@ -267,6 +374,9 @@ def get_aggregation_function(func_name: str) -> Callable:
         'mean': agg_avg,
         'min': agg_min,
         'max': agg_max,
+        'stdev': agg_stdev,
+        'stdevp': agg_stdev,  # Population stdev (same as stdev)
+        'stdevs': agg_stdev_sample,  # Sample stdev
         'values': agg_values,
         'list': agg_list,
         'dc': agg_distinct_count,
@@ -361,3 +471,64 @@ def agg_list(data: List[Dict[str, Any]], field: str) -> List[Any]:
 def agg_distinct_count(data: List[Dict[str, Any]], field: str) -> int:
     """Count of distinct field values"""
     return len(agg_values(data, field))
+
+
+def agg_stdev(data: List[Dict[str, Any]], field: str) -> float:
+    """
+    Standard deviation of field values (population).
+
+    Uses the population standard deviation formula:
+    sqrt(sum((x - mean)^2) / n)
+    """
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (ValueError, TypeError):
+                pass
+
+    if len(values) == 0:
+        return 0.0
+
+    if len(values) == 1:
+        return 0.0
+
+    # Calculate mean
+    mean = sum(values) / len(values)
+
+    # Calculate variance
+    variance = sum((x - mean) ** 2 for x in values) / len(values)
+
+    # Return standard deviation
+    return math.sqrt(variance)
+
+
+def agg_stdev_sample(data: List[Dict[str, Any]], field: str) -> float:
+    """
+    Standard deviation of field values (sample).
+
+    Uses the sample standard deviation formula:
+    sqrt(sum((x - mean)^2) / (n-1))
+    """
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (ValueError, TypeError):
+                pass
+
+    if len(values) <= 1:
+        return 0.0
+
+    # Calculate mean
+    mean = sum(values) / len(values)
+
+    # Calculate sample variance
+    variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
+
+    # Return standard deviation
+    return math.sqrt(variance)
