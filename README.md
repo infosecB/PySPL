@@ -97,6 +97,9 @@ spl.search('stats count, avg(age), sum(score) by city')
 # Available functions:
 # - count, count(field)
 # - sum(field), avg(field), min(field), max(field)
+# - stdev(field) - standard deviation (population)
+# - stdevp(field) - standard deviation (population, same as stdev)
+# - stdevs(field) - standard deviation (sample)
 # - values(field) - distinct values
 # - list(field) - all values including duplicates
 # - dc(field) - distinct count

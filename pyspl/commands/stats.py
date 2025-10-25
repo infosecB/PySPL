@@ -3,6 +3,7 @@ Stats command implementation for aggregations
 """
 
 import re
+import math
 from typing import List, Dict, Any, Callable
 from collections import defaultdict
 
@@ -373,6 +374,9 @@ def get_aggregation_function(func_name: str) -> Callable:
         'mean': agg_avg,
         'min': agg_min,
         'max': agg_max,
+        'stdev': agg_stdev,
+        'stdevp': agg_stdev,  # Population stdev (same as stdev)
+        'stdevs': agg_stdev_sample,  # Sample stdev
         'values': agg_values,
         'list': agg_list,
         'dc': agg_distinct_count,
@@ -467,3 +471,64 @@ def agg_list(data: List[Dict[str, Any]], field: str) -> List[Any]:
 def agg_distinct_count(data: List[Dict[str, Any]], field: str) -> int:
     """Count of distinct field values"""
     return len(agg_values(data, field))
+
+
+def agg_stdev(data: List[Dict[str, Any]], field: str) -> float:
+    """
+    Standard deviation of field values (population).
+
+    Uses the population standard deviation formula:
+    sqrt(sum((x - mean)^2) / n)
+    """
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (ValueError, TypeError):
+                pass
+
+    if len(values) == 0:
+        return 0.0
+
+    if len(values) == 1:
+        return 0.0
+
+    # Calculate mean
+    mean = sum(values) / len(values)
+
+    # Calculate variance
+    variance = sum((x - mean) ** 2 for x in values) / len(values)
+
+    # Return standard deviation
+    return math.sqrt(variance)
+
+
+def agg_stdev_sample(data: List[Dict[str, Any]], field: str) -> float:
+    """
+    Standard deviation of field values (sample).
+
+    Uses the sample standard deviation formula:
+    sqrt(sum((x - mean)^2) / (n-1))
+    """
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (ValueError, TypeError):
+                pass
+
+    if len(values) <= 1:
+        return 0.0
+
+    # Calculate mean
+    mean = sum(values) / len(values)
+
+    # Calculate sample variance
+    variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
+
+    # Return standard deviation
+    return math.sqrt(variance)
