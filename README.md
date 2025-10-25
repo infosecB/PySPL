@@ -14,11 +14,7 @@ A lightweight Python library that allows you to run Splunk SPL (Search Processin
 
 ## Installation
 
-```bash
-pip install pyspl
-```
-
-Or install from source:
+Install from source:
 
 ```bash
 git clone https://github.com/yourusername/pyspl.git
