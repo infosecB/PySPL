@@ -82,7 +82,16 @@ spl.search('stats count')
 # Count by group
 spl.search('stats count by city')
 
-# Multiple aggregations
+# Multiple aggregations (space-separated)
+spl.search('stats count avg(age) sum(score) by city')
+
+# With aliases using 'as'
+spl.search('stats count as total avg(age) as average by city')
+
+# Mix of aliased and non-aliased
+spl.search('stats dc(category) as categories count by user')
+
+# Backward compatible: comma-separated also works
 spl.search('stats count, avg(age), sum(score) by city')
 
 # Available functions:
@@ -103,8 +112,11 @@ spl.search('eventstats count')
 # Add city-specific count to each event
 spl.search('eventstats count by city')
 
-# Add multiple aggregations per group
-spl.search('eventstats avg(score), max(score) by city')
+# Add multiple aggregations per group (space-separated)
+spl.search('eventstats avg(score) max(score) by city')
+
+# With aliases
+spl.search('eventstats avg(score) as city_avg by city')
 
 # Compare individual values to group averages
 data = [
@@ -113,11 +125,11 @@ data = [
     {"name": "Charlie", "city": "LA", "score": 92}
 ]
 spl = SPL(data)
-result = spl.search('eventstats avg(score) by city')
-# Result: Each event now has avg(score) for their city
-# Alice: {"name": "Alice", "city": "NYC", "score": 85, "avg(score)": 81.5}
-# Bob: {"name": "Bob", "city": "NYC", "score": 78, "avg(score)": 81.5}
-# Charlie: {"name": "Charlie", "city": "LA", "score": 92, "avg(score)": 92.0}
+result = spl.search('eventstats avg(score) as city_avg by city')
+# Result: Each event now has city_avg for their city
+# Alice: {"name": "Alice", "city": "NYC", "score": 85, "city_avg": 81.5}
+# Bob: {"name": "Bob", "city": "NYC", "score": 78, "city_avg": 81.5}
+# Charlie: {"name": "Charlie", "city": "LA", "score": 92, "city_avg": 92.0}
 ```
 
 ### Fields
