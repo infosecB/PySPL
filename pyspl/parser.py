@@ -28,6 +28,11 @@ class StatsCommand(SPLCommand):
     pass
 
 
+class EventstatsCommand(SPLCommand):
+    """Represents an eventstats command"""
+    pass
+
+
 class FieldsCommand(SPLCommand):
     """Represents a fields command"""
     pass
@@ -75,6 +80,7 @@ class SPLParser:
         'search': SearchCommand,
         'where': SearchCommand,
         'stats': StatsCommand,
+        'eventstats': EventstatsCommand,
         'fields': FieldsCommand,
         'rename': RenameCommand,
         'eval': EvalCommand,

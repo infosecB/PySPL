@@ -9,6 +9,7 @@ from .parser import (
     SPLParser,
     SearchCommand,
     StatsCommand,
+    EventstatsCommand,
     FieldsCommand,
     RenameCommand,
     EvalCommand,
@@ -20,6 +21,7 @@ from .parser import (
 from .commands import (
     execute_search,
     execute_stats,
+    execute_eventstats,
     execute_fields,
     execute_rename,
     execute_table,
@@ -101,6 +103,9 @@ class SPL:
 
         elif isinstance(command, StatsCommand):
             return execute_stats(data, command.args)
+
+        elif isinstance(command, EventstatsCommand):
+            return execute_eventstats(data, command.args)
 
         elif isinstance(command, FieldsCommand):
             return execute_fields(data, command.args)

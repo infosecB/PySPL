@@ -6,6 +6,7 @@ A lightweight Python library that allows you to run Splunk SPL (Search Processin
 
 - **Search & Filter**: Use SPL search syntax to filter data
 - **Statistics**: Compute aggregations like count, sum, avg, min, max
+- **Eventstats**: Add aggregated values to events while preserving all records
 - **Field Operations**: Select, rename, and transform fields
 - **Sorting**: Sort results by any field
 - **Pipe Chains**: Combine multiple SPL commands using pipes
@@ -90,6 +91,33 @@ spl.search('stats count, avg(age), sum(score) by city')
 # - values(field) - distinct values
 # - list(field) - all values including duplicates
 # - dc(field) - distinct count
+```
+
+### Eventstats
+Add aggregated values to each event (like stats, but preserves all original events):
+
+```python
+# Add total count to each event
+spl.search('eventstats count')
+
+# Add city-specific count to each event
+spl.search('eventstats count by city')
+
+# Add multiple aggregations per group
+spl.search('eventstats avg(score), max(score) by city')
+
+# Compare individual values to group averages
+data = [
+    {"name": "Alice", "city": "NYC", "score": 85},
+    {"name": "Bob", "city": "NYC", "score": 78},
+    {"name": "Charlie", "city": "LA", "score": 92}
+]
+spl = SPL(data)
+result = spl.search('eventstats avg(score) by city')
+# Result: Each event now has avg(score) for their city
+# Alice: {"name": "Alice", "city": "NYC", "score": 85, "avg(score)": 81.5}
+# Bob: {"name": "Bob", "city": "NYC", "score": 78, "avg(score)": 81.5}
+# Charlie: {"name": "Charlie", "city": "LA", "score": 92, "avg(score)": 92.0}
 ```
 
 ### Fields
