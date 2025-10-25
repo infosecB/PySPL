@@ -1,0 +1,285 @@
+# PySPL - Splunk SPL for Python Dictionaries
+
+A lightweight Python library that allows you to run Splunk SPL (Search Processing Language) queries against Python dictionaries and lists. No Splunk installation required!
+
+## Features
+
+- **Search & Filter**: Use SPL search syntax to filter data
+- **Statistics**: Compute aggregations like count, sum, avg, min, max
+- **Field Operations**: Select, rename, and transform fields
+- **Sorting**: Sort results by any field
+- **Pipe Chains**: Combine multiple SPL commands using pipes
+- **Pure Python**: No external dependencies, works with standard Python dicts
+
+## Installation
+
+```bash
+pip install pyspl
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/yourusername/pyspl.git
+cd pyspl
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from pyspl import SPL
+
+# Your data as a list of dictionaries
+data = [
+    {"name": "Alice", "age": 30, "city": "NYC", "score": 85},
+    {"name": "Bob", "age": 25, "city": "LA", "score": 90},
+    {"name": "Charlie", "age": 35, "city": "NYC", "score": 78},
+    {"name": "David", "age": 28, "city": "SF", "score": 92},
+]
+
+# Create SPL instance
+spl = SPL(data)
+
+# Run queries
+result = spl.search('city="NYC" | stats avg(score)')
+print(result)
+# Output: [{'avg(score)': 81.5}]
+```
+
+## Supported SPL Commands
+
+### Search / Where
+Filter data using conditions:
+
+```python
+# Exact match
+spl.search('city="NYC"')
+
+# Comparison operators
+spl.search('age>30')
+spl.search('score>=85')
+spl.search('age<=28')
+
+# Not equal
+spl.search('city!="LA"')
+
+# Multiple conditions (AND logic)
+spl.search('city="NYC" age>25')
+
+# Field exists
+spl.search('city=*')
+```
+
+### Stats
+Compute aggregations:
+
+```python
+# Count all records
+spl.search('stats count')
+
+# Count by group
+spl.search('stats count by city')
+
+# Multiple aggregations
+spl.search('stats count, avg(age), sum(score) by city')
+
+# Available functions:
+# - count, count(field)
+# - sum(field), avg(field), min(field), max(field)
+# - values(field) - distinct values
+# - list(field) - all values including duplicates
+# - dc(field) - distinct count
+```
+
+### Fields
+Select or exclude fields:
+
+```python
+# Include only specific fields
+spl.search('fields name, age')
+
+# Exclude fields
+spl.search('fields - score')
+```
+
+### Rename
+Rename fields:
+
+```python
+spl.search('rename name as full_name, city as location')
+```
+
+### Eval
+Create or modify fields:
+
+```python
+# Arithmetic
+spl.search('eval total = price * quantity')
+
+# Conditional
+spl.search('eval category = if(price > 100, "expensive", "cheap")')
+
+# Constants
+spl.search('eval status = "active"')
+```
+
+### Sort
+Sort results:
+
+```python
+# Ascending
+spl.search('sort age')
+
+# Descending
+spl.search('sort -score')
+
+# Multiple fields
+spl.search('sort city, -age')
+```
+
+### Head / Tail
+Limit results:
+
+```python
+# First 10 records (default)
+spl.search('head')
+
+# First 5 records
+spl.search('head 5')
+
+# Last 3 records
+spl.search('tail 3')
+```
+
+## Complex Examples
+
+### Web Server Log Analysis
+
+```python
+from pyspl import SPL
+
+logs = [
+    {"timestamp": "2025-01-01 10:00", "status": 200, "method": "GET", "response_time": 45},
+    {"timestamp": "2025-01-01 10:01", "status": 404, "method": "GET", "response_time": 12},
+    {"timestamp": "2025-01-01 10:02", "status": 200, "method": "POST", "response_time": 123},
+    {"timestamp": "2025-01-01 10:03", "status": 500, "method": "POST", "response_time": 567},
+    {"timestamp": "2025-01-01 10:04", "status": 200, "method": "GET", "response_time": 34},
+]
+
+spl = SPL(logs)
+
+# Average response time by status code
+result = spl.search('stats avg(response_time) by status | sort -avg(response_time)')
+print(result)
+
+# Count errors
+result = spl.search('status>=400 | stats count by status')
+print(result)
+
+# Slow requests
+result = spl.search('response_time>100 | fields timestamp, method, response_time')
+print(result)
+```
+
+### E-commerce Analytics
+
+```python
+from pyspl import SPL
+
+sales = [
+    {"product": "Laptop", "category": "Electronics", "price": 999, "quantity": 2},
+    {"product": "Mouse", "category": "Electronics", "price": 25, "quantity": 5},
+    {"product": "Desk", "category": "Furniture", "price": 299, "quantity": 1},
+    {"product": "Chair", "category": "Furniture", "price": 199, "quantity": 4},
+]
+
+spl = SPL(sales)
+
+# Calculate total revenue per product
+result = spl.search('eval revenue = price * quantity | stats sum(revenue) by category | sort -sum(revenue)')
+print(result)
+
+# Find expensive items
+result = spl.search('price>200 | eval type = if(price>500, "premium", "standard") | fields product, price, type')
+print(result)
+```
+
+### User Activity Tracking
+
+```python
+from pyspl import SPL
+
+activities = [
+    {"user": "alice", "action": "login", "duration": 120},
+    {"user": "bob", "action": "login", "duration": 95},
+    {"user": "alice", "action": "search", "duration": 45},
+    {"user": "charlie", "action": "search", "duration": 60},
+    {"user": "alice", "action": "logout", "duration": 10},
+]
+
+spl = SPL(activities)
+
+# Most active users
+result = spl.search('stats count by user | sort -count | head 3')
+print(result)
+
+# Average session duration per action
+result = spl.search('stats avg(duration) by action')
+print(result)
+
+# Alice's activity summary
+result = spl.search('user="alice" | stats count, sum(duration)')
+print(result)
+```
+
+## Piping Commands
+
+Chain multiple commands together using pipes:
+
+```python
+spl.search('status=200 | eval fast = if(response_time < 50, "yes", "no") | stats count by fast')
+
+spl.search('city="NYC" | stats avg(age), count by status | sort -count | head 5')
+
+spl.search('price>50 | eval category = if(price>100, "high", "medium") | stats sum(price) by category | fields category, sum(price)')
+```
+
+## API Reference
+
+### SPL Class
+
+```python
+SPL(data: Union[List[Dict], Dict])
+```
+
+**Parameters:**
+- `data`: A dictionary or list of dictionaries to query
+
+**Methods:**
+- `search(query: str) -> List[Dict]`: Execute an SPL query and return results
+
+## Running Tests
+
+```bash
+python -m unittest discover tests -v
+```
+
+## Limitations
+
+- This is a simplified implementation of SPL, not all Splunk features are supported
+- Eval expressions use Python's `eval()` with restricted context (be cautious with untrusted input)
+- Regular expressions and advanced SPL features are not yet implemented
+- Time-based functions are not yet supported
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Acknowledgments
+
+Inspired by Splunk's Search Processing Language (SPL). This is an independent implementation and is not affiliated with Splunk Inc.

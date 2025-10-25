@@ -1,0 +1,257 @@
+"""
+Stats command implementation for aggregations
+"""
+
+import re
+from typing import List, Dict, Any, Callable
+from collections import defaultdict
+
+
+def execute_stats(data: List[Dict[str, Any]], args: str) -> List[Dict[str, Any]]:
+    """
+    Execute a stats command for aggregations.
+
+    Supports:
+        - count, count(field)
+        - sum(field), avg(field), min(field), max(field)
+        - values(field), list(field)
+        - dc(field) - distinct count
+        - by field1, field2 - grouping
+
+    Examples:
+        stats count
+        stats count by status
+        stats avg(response_time) by endpoint
+        stats count, avg(age) by city
+
+    Args:
+        data: List of dictionaries to aggregate
+        args: Stats command arguments
+
+    Returns:
+        List of dictionaries with aggregated results
+    """
+    if not data:
+        return []
+
+    # Parse the stats command
+    # Format: aggregation_func(field), ... by groupby_field1, groupby_field2
+
+    # Split by 'by' keyword
+    by_match = re.search(r'\s+by\s+', args, re.IGNORECASE)
+    if by_match:
+        agg_part = args[:by_match.start()].strip()
+        by_part = args[by_match.end():].strip()
+        group_by_fields = [f.strip() for f in by_part.split(',')]
+    else:
+        agg_part = args.strip()
+        group_by_fields = []
+
+    # Parse aggregation functions
+    agg_funcs = parse_aggregations(agg_part)
+
+    if not agg_funcs:
+        return []
+
+    # Group data
+    if group_by_fields:
+        groups = defaultdict(list)
+        for record in data:
+            # Create group key from group_by fields
+            key_parts = []
+            for field in group_by_fields:
+                value = record.get(field, None)
+                key_parts.append((field, value))
+            key = tuple(key_parts)
+            groups[key].append(record)
+
+        # Compute aggregations for each group
+        results = []
+        for key, group_data in groups.items():
+            result = {}
+            # Add group by fields to result
+            for field, value in key:
+                result[field] = value
+
+            # Compute aggregations
+            for agg_name, agg_func, field_name in agg_funcs:
+                result[agg_name] = agg_func(group_data, field_name)
+
+            results.append(result)
+
+        return results
+    else:
+        # No grouping - compute aggregations over all data
+        result = {}
+        for agg_name, agg_func, field_name in agg_funcs:
+            result[agg_name] = agg_func(data, field_name)
+
+        return [result]
+
+
+def parse_aggregations(agg_str: str) -> List[tuple]:
+    """
+    Parse aggregation function strings.
+
+    Returns:
+        List of tuples: (result_name, function, field_name)
+    """
+    agg_funcs = []
+
+    # Split by comma (but not inside parentheses)
+    parts = split_by_comma(agg_str)
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        # Match function(field) or function
+        match = re.match(r'(\w+)\s*\(\s*([^)]*)\s*\)', part)
+        if match:
+            func_name = match.group(1).lower()
+            field_name = match.group(2).strip()
+
+            agg_func = get_aggregation_function(func_name)
+            if agg_func:
+                # Result name is func(field)
+                result_name = f"{func_name}({field_name})" if field_name else func_name
+                agg_funcs.append((result_name, agg_func, field_name))
+        else:
+            # Simple function without parentheses (e.g., 'count')
+            func_name = part.lower()
+            agg_func = get_aggregation_function(func_name)
+            if agg_func:
+                agg_funcs.append((func_name, agg_func, None))
+
+    return agg_funcs
+
+
+def split_by_comma(s: str) -> List[str]:
+    """Split string by comma, respecting parentheses"""
+    parts = []
+    current = []
+    depth = 0
+
+    for char in s:
+        if char == '(':
+            depth += 1
+        elif char == ')':
+            depth -= 1
+        elif char == ',' and depth == 0:
+            parts.append(''.join(current))
+            current = []
+            continue
+
+        current.append(char)
+
+    if current:
+        parts.append(''.join(current))
+
+    return parts
+
+
+def get_aggregation_function(func_name: str) -> Callable:
+    """Get the aggregation function by name"""
+
+    functions = {
+        'count': agg_count,
+        'sum': agg_sum,
+        'avg': agg_avg,
+        'mean': agg_avg,
+        'min': agg_min,
+        'max': agg_max,
+        'values': agg_values,
+        'list': agg_list,
+        'dc': agg_distinct_count,
+        'distinct_count': agg_distinct_count,
+    }
+
+    return functions.get(func_name)
+
+
+def agg_count(data: List[Dict[str, Any]], field: str = None) -> int:
+    """Count records or non-null field values"""
+    if field:
+        return sum(1 for record in data if record.get(field) is not None)
+    return len(data)
+
+
+def agg_sum(data: List[Dict[str, Any]], field: str) -> float:
+    """Sum of field values"""
+    total = 0
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                total += float(value)
+            except (ValueError, TypeError):
+                pass
+    return total
+
+
+def agg_avg(data: List[Dict[str, Any]], field: str) -> float:
+    """Average of field values"""
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            try:
+                values.append(float(value))
+            except (ValueError, TypeError):
+                pass
+
+    return sum(values) / len(values) if values else 0
+
+
+def agg_min(data: List[Dict[str, Any]], field: str) -> Any:
+    """Minimum field value"""
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            values.append(value)
+
+    return min(values) if values else None
+
+
+def agg_max(data: List[Dict[str, Any]], field: str) -> Any:
+    """Maximum field value"""
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            values.append(value)
+
+    return max(values) if values else None
+
+
+def agg_values(data: List[Dict[str, Any]], field: str) -> List[Any]:
+    """Distinct values of field"""
+    values = set()
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            # Convert unhashable types to strings
+            try:
+                values.add(value)
+            except TypeError:
+                values.add(str(value))
+
+    return sorted(list(values))
+
+
+def agg_list(data: List[Dict[str, Any]], field: str) -> List[Any]:
+    """All values of field (including duplicates)"""
+    values = []
+    for record in data:
+        value = record.get(field)
+        if value is not None:
+            values.append(value)
+
+    return values
+
+
+def agg_distinct_count(data: List[Dict[str, Any]], field: str) -> int:
+    """Count of distinct field values"""
+    return len(agg_values(data, field))
