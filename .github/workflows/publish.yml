@@ -14,6 +14,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        # Extract version from tag (e.g., refs/tags/v0.2.0 -> 0.2.0)
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+
+    - name: Update version in code
+      run: |
+        # Update __version__ in pyspl/__init__.py
+        VERSION="${{ steps.get_version.outputs.version }}"
+        sed -i "s/__version__ = .*/__version__ = \"$VERSION\"/" pyspl/__init__.py
+        echo "Updated pyspl/__init__.py to version $VERSION"
+        grep "__version__" pyspl/__init__.py
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
