@@ -39,9 +39,9 @@ data = [
 spl = SPL(data)
 
 # Run queries
-result = spl.search('city="NYC" | stats avg(score)')
+result = spl.search('city="NYC" | stats avg(score) as avg')
 print(result)
-# Output: [{'avg(score)': 81.5}]
+# Output: [{'avg': 81.5}]
 ```
 
 ## Supported SPL Commands
