@@ -30,6 +30,7 @@ from .commands import (
     execute_head,
     execute_tail,
 )
+from .subsearch import process_subsearches
 
 
 class SPL:
@@ -66,14 +67,19 @@ class SPL:
         """
         Execute an SPL query against the data.
 
+        Supports subsearches enclosed in square brackets [...]
+
         Args:
             query: SPL query string
 
         Returns:
             List of dictionaries with query results
         """
-        # Parse the query
-        parser = SPLParser(query)
+        # Process subsearches first (they execute against the same data)
+        processed_query = process_subsearches(query, self.data, self)
+
+        # Parse the processed query
+        parser = SPLParser(processed_query)
         commands = parser.parse()
 
         # Execute commands in sequence
