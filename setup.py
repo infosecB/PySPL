@@ -3,13 +3,23 @@ Setup configuration for PySPL
 """
 
 from setuptools import setup, find_packages
+import os
+
+# Read version from pyspl/__init__.py
+def get_version():
+    init_path = os.path.join(os.path.dirname(__file__), "pyspl", "__init__.py")
+    with open(init_path, "r") as f:
+        for line in f:
+            if line.startswith("__version__"):
+                return line.split("=")[1].strip().strip('"').strip("'")
+    raise RuntimeError("Version not found")
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="pyspl",
-    version="0.1.0",
+    version=get_version(),
     author="PySPL Contributors",
     author_email="",
     description="A Python library for running Splunk SPL queries against Python dictionaries",

@@ -341,13 +341,15 @@ python -m unittest discover tests -v
 
 This project uses GitHub Actions for automated releases to PyPI. Here's how to release a new version:
 
-1. **Update the version number** in both files:
-   - `setup.py` (line 12: `version="X.Y.Z"`)
-   - `pyproject.toml` (line 6: `version = "X.Y.Z"`)
+1. **Update the version number** in `pyspl/__init__.py`:
+   ```python
+   __version__ = "X.Y.Z"
+   ```
+   (This is the single source of truth - both setup.py and pyproject.toml read from here)
 
 2. **Commit the version changes**:
    ```bash
-   git add setup.py pyproject.toml
+   git add pyspl/__init__.py
    git commit -m "Bump version to X.Y.Z"
    git push
    ```

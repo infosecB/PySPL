@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyspl"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A Python library for running Splunk SPL queries against Python dictionaries"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -40,3 +40,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 exclude = ["tests*", "examples*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pyspl.__version__"}
