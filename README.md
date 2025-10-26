@@ -315,6 +315,61 @@ python -m unittest discover tests -v
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+### Development Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/infosecB/PySPL.git
+cd PySPL
+```
+
+2. Install in development mode:
+```bash
+pip install -e .
+```
+
+3. Run tests:
+```bash
+python -m unittest discover tests -v
+```
+
+### Releasing a New Version
+
+This project uses GitHub Actions for automated releases to PyPI. Here's how to release a new version:
+
+1. **Update the version number** in `pyspl/__init__.py`:
+   ```python
+   __version__ = "X.Y.Z"
+   ```
+   (This is the single source of truth - both setup.py and pyproject.toml read from here)
+
+2. **Commit the version changes**:
+   ```bash
+   git add pyspl/__init__.py
+   git commit -m "Bump version to X.Y.Z"
+   git push
+   ```
+
+3. **Create a new release on GitHub**:
+   - Go to https://github.com/infosecB/PySPL/releases/new
+   - Create a new tag: `vX.Y.Z` (e.g., `v0.2.0`)
+   - Set the release title: `vX.Y.Z`
+   - Add release notes describing the changes
+   - Click "Publish release"
+
+4. **Automated publishing**:
+   - The GitHub Action will automatically build and publish to PyPI
+   - Monitor the progress at: https://github.com/infosecB/PySPL/actions
+
+**Note**: Before the first release, you need to configure PyPI Trusted Publishing:
+1. Go to https://pypi.org/manage/account/publishing/
+2. Add a new publisher:
+   - PyPI Project Name: `pyspl`
+   - Owner: `infosecB`
+   - Repository name: `PySPL`
+   - Workflow name: `publish.yml`
+   - Environment name: (leave blank)
+
 ## License
 
 MIT License - See LICENSE file for details

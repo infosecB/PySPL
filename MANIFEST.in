@@ -1,6 +1,7 @@
 include README.md
 include LICENSE
-include requirements.txt
+include pyproject.toml
 recursive-include pyspl *.py
-recursive-include tests *.py
-recursive-include examples *.py
+recursive-exclude tests *
+recursive-exclude examples *
+recursive-exclude .github *
